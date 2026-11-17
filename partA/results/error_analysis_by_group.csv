@@ -1,0 +1,5 @@
+scenario,group,n,rmse,mean_error
+A: early warning,students with G3 = 0,5,9.05239096130383,8.529422826961596
+A: early warning,students with G3 > 0,74,3.32942003998343,-0.3655361685924651
+"B: with G1, G2",students with G3 = 0,5,5.28131927962449,4.358666666666666
+"B: with G1, G2",students with G3 > 0,74,1.5194794726707785,-0.3119369369369369

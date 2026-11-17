@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overfit Lab - a game about learning from data</title>
+<style>
+  :root{--bg:#f6f8fb;--card:#fff;--ink:#1a202c;--mute:#5a6578;--line:#dfe5ee;--blue:#2b6cb0;--orange:#dd6b20;--red:#c53030;--green:#2f855a;--grey:#9aa5b8}
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:#1a365d;color:#fff;padding:18px 20px}
+  header .in{max-width:1080px;margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  h1{margin:0;font-size:22px} header p{margin:2px 0 0;color:#bee3f8;font-size:14px}
+  .total{font-weight:600;background:#2c5282;padding:6px 12px;border-radius:20px;font-size:14px}
+  main{max-width:1080px;margin:0 auto;padding:16px 16px 40px}
+  details.how{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin-bottom:14px}
+  details.how summary{cursor:pointer;font-weight:600}
+  details.how ul{margin:8px 0 4px 18px;padding:0} details.how li{margin:3px 0}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{flex:1;min-width:150px;background:var(--card);border:2px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;text-align:left;font:inherit}
+  .tab b{display:block;font-size:13px;color:var(--mute)} .tab span{font-size:14px;font-weight:600}
+  .tab.on{border-color:var(--blue);background:#ebf4ff}
+  .stars{color:#d69e2e;letter-spacing:2px;font-size:14px}
+  .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:10px;padding:12px 16px;margin-bottom:14px}
+  .mission h2{margin:0 0 4px;font-size:18px} .mission p{margin:4px 0}
+  .grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:14px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  canvas{width:100%;display:block}
+  #plot{height:360px} #chart{height:230px}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--mute);margin-top:6px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+  label{font-weight:600;display:block;margin-bottom:4px}
+  input[type=range]{width:100%}
+  .row{margin-bottom:14px}
+  .read{display:flex;gap:10px;margin-bottom:14px}
+  .read div{flex:1;background:#f1f5fb;border-radius:8px;padding:8px 10px}
+  .read small{color:var(--mute);display:block;font-size:12px} .read b{font-size:20px}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  button.b{font:inherit;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer}
+  button.b.alt{background:#fff;color:var(--blue)} button.b:disabled{opacity:.45;cursor:not-allowed}
+  .hint{color:var(--mute);font-size:13px;margin-top:10px}
+  #result{margin-top:14px;display:none}
+  #result h3{margin:0 0 6px;font-size:17px}
+  .big{font-size:26px;font-weight:700}
+  .good{color:var(--green)} .bad{color:var(--red)}
+  .lesson{background:#fffaf0;border:1px solid #fbd38d;border-radius:8px;padding:10px 12px;margin:10px 0}
+  textarea{width:100%;height:150px;font:12px/1.4 ui-monospace,monospace;margin-top:8px}
+  footer{max-width:1080px;margin:0 auto;padding:0 16px 30px;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div><h1>Overfit Lab</h1><p>Can you fit the pattern, not the noise? Discover overfitting by playing.</p></div>
+  <div class="total" id="total">Stars: 0 / 12</div>
+</div></header>
+
+<main>
+  <details class="how" open>
+    <summary>How to play &amp; what you will learn</summary>
+    <ul>
+      <li><b>Goal:</b> choose a model that predicts <i>new</i> data well. Each level has hidden data (the <b>test set</b>) that is revealed only when you press the lock-in button. Your score is how close you get to the best possible.</li>
+      <li><b>Slider:</b> model complexity = degree of a polynomial curve fitted to the dots (degree 1 = straight line). The curve is fitted for real, in your browser, every time you move the slider.</li>
+      <li><b>Learning objectives:</b> (1) explain overfitting and underfitting; (2) see why training error alone is misleading and why we hold data back (train / validation / test); (3) see how more data tames a flexible model; (4) see that on real, noisy data a simple model often wins.</li>
+      <li><b>Tip:</b> play the levels in order. Press <i>New data</i> to replay a level with a different random sample.</li>
+    </ul>
+  </details>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="mission" id="mission"></div>
+
+  <div class="grid">
+    <div class="card">
+      <canvas id="plot"></canvas>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card">
+      <div class="row" id="degRow"><label for="deg">Model complexity (degree): <span id="degVal"></span></label><input type="range" id="deg"></div>
+      <div class="row" id="nRow" style="display:none"><label for="nn">Training points you collect: <span id="nVal"></span></label><input type="range" id="nn" min="10" max="120" step="5"><div class="hint">Model is fixed at degree 9 (very flexible).</div></div>
+      <div class="read">
+        <div><small>Training error</small><b id="trErr">-</b></div>
+        <div id="valBox"><small>Validation error</small><b id="vaErr">-</b></div>
+      </div>
+      <div class="btns">
+        <button class="b" id="lock">Lock in &amp; reveal test</button>
+        <button class="b alt" id="again">New data</button>
+        <button class="b alt" id="next" style="display:none">Next level &rarr;</button>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <div class="card" id="result">
+    <h3 id="resTitle"></h3>
+    <div id="resBody"></div>
+    <canvas id="chart"></canvas>
+    <div class="legend" id="chartLegend"></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <b>Playtest evidence</b>
+    <div class="hint" style="margin:4px 0 8px">For the report: have a classmate play, type their name, then copy the summary into <code>docs/PLAYTEST.md</code> together with their feedback.</div>
+    <div class="btns"><input id="pname" placeholder="Player name" style="padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit"><button class="b alt" id="export">Create my results summary</button></div>
+    <textarea id="exportBox" style="display:none" readonly></textarea>
+  </div>
+</main>
+<footer>Part B of the Data Science project &middot; Team: Ajim (EC24I2021), Jashwanth (EC24I1019), Charan Teja (EC24I2015) &middot; Level 4 uses the real UCI Student Performance data (Cortez &amp; Silva, 2008).</footer>
+
+<script src="studentdata.js"></script>
+<script src="engine.js"></script>
+<script>
+(function(){
+"use strict";
+const E = window.Engine, PTS = window.STUDENT_PTS;
+const $ = (id)=>document.getElementById(id);
+const COL = {blue:"#2b6cb0", orange:"#dd6b20", red:"#c53030", grey:"#9aa5b8", ink:"#1a202c", line:"#dfe5ee"};
+
+const LEVELS = [
+  {id:1, title:"Trust the training score", kind:"syn", nFit:15, nVal:0, maxDeg:14, showVal:false, yCap:2,
+   mission:"You have 15 noisy measurements. Slide the complexity and pick the curve you think will predict <b>new</b> data best. You can only see the <b>training error</b>. Then lock in: a hidden test set decides your score."},
+  {id:2, title:"Hold some data back", kind:"syn", nFit:20, nVal:10, maxDeg:12, showVal:true, yCap:2,
+   mission:"Same game, but now 10 of the 30 points are held back as a <b>validation set</b> (orange squares). The model never trains on them, so they act like a practice exam. Use them to choose, then lock in."},
+  {id:3, title:"How much data is enough?", kind:"syn-n", fixedDeg:9, target:0.5, yCap:2,
+   mission:"Your model is fixed at degree 9: very flexible, so it overfits easily. The only lever is <b>data</b>. How few training points can you collect and still get test error below <b>0.50</b>? (Noise alone makes about 0.35 unavoidable.)"},
+  {id:4, title:"Real students", kind:"real", nFit:20, nVal:10, maxDeg:12, showVal:true, yCap:6,
+   mission:"Real students from the Part A dataset. Predict the final grade (G3) from the first-period grade (G1) using only 20 students, with 10 more held out for validation. The other 365 students are the hidden test set. Errors are in grade points (0-20 scale)."}
+];
+const S = LEVELS.map(()=>({seed:1,deg:3,n:20,locked:false,attempts:0,stars:0,res:null,tests:[],last:null}));
+const log = [];
+let cur = 0, data = null;
+
+/* ---------- data ---------- */
+function build(){
+  const L = LEVELS[cur], s = S[cur];
+  if(L.kind==="syn"){
+    const d = E.makeSynthetic(s.seed*101+L.id, L.nFit+L.nVal, 300);
+    data = {train:{x:d.train.x.slice(0,L.nFit), y:d.train.y.slice(0,L.nFit)},
+            val: L.nVal? {x:d.train.x.slice(L.nFit), y:d.train.y.slice(L.nFit)} : null,
+            test:d.test, yScale:1, real:false};
+  } else if(L.kind==="syn-n"){
+    const d = E.makeSynthetic(s.seed*101+L.id, 120, 300);
+    data = {train:d.train, val:null, test:d.test, yScale:1, real:false};
+  } else {
+    const d = E.makeReal(s.seed*101+L.id, PTS, L.nFit, L.nVal);
+    data = {train:d.train, val:d.val, test:d.test, yScale:4, real:true};
+  }
+}
+function fitSet(){
+  const L = LEVELS[cur];
+  if(L.kind==="syn-n"){const n=S[cur].n; return {x:data.train.x.slice(0,n), y:data.train.y.slice(0,n)};}
+  return data.train;
+}
+function curDeg(){ const L=LEVELS[cur]; return L.kind==="syn-n"? L.fixedDeg : S[cur].deg; }
+function model(){ const f=fitSet(); return E.fitPoly(f.x,f.y,curDeg()); }
+const fmt = (v)=> !isFinite(v)? "-" : (v>=50? ">50" : v.toFixed(2));
+const stars = (k)=> "★".repeat(k)+"☆".repeat(3-k);
+
+/* ---------- drawing ---------- */
+function setup(cv){
+  const dpr = window.devicePixelRatio||1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  ctx.font = "12px system-ui,sans-serif";
+  return {ctx,W,H};
+}
+function drawPlot(){
+  const {ctx,W,H} = setup($("plot"));
+  const L = LEVELS[cur], s = S[cur], m = {l:44,r:12,t:12,b:34};
+  const pw = W-m.l-m.r, ph = H-m.t-m.b;
+  const X = x=> m.l+(x+1)/2*pw, Y = y=> m.t+(1-(y+2.5)/5)*ph;
+  ctx.strokeStyle = COL.line; ctx.fillStyle = "#5a6578"; ctx.lineWidth = 1;
+  const xt = data.real? [5,8,11,14,17].map(g=>({v:(g-11)/8,t:String(g)})) : [-1,-.5,0,.5,1].map(v=>({v,t:String(v)}));
+  const yt = data.real? [0,5,10,15,20].map(g=>({v:(g-10)/4,t:String(g)})) : [-2,-1,0,1,2].map(v=>({v,t:String(v)}));
+  ctx.textAlign="center"; xt.forEach(t=>{ctx.beginPath();ctx.moveTo(X(t.v),m.t);ctx.lineTo(X(t.v),m.t+ph);ctx.stroke();ctx.fillText(t.t,X(t.v),H-16);});
+  ctx.textAlign="right"; yt.forEach(t=>{ctx.beginPath();ctx.moveTo(m.l,Y(t.v));ctx.lineTo(m.l+pw,Y(t.v));ctx.stroke();ctx.fillText(t.t,m.l-6,Y(t.v)+4);});
+  ctx.textAlign="center"; ctx.fillText(data.real? "first-period grade G1":"input x",m.l+pw/2,H-2);
+  ctx.save(); ctx.translate(11,m.t+ph/2); ctx.rotate(-Math.PI/2); ctx.fillText(data.real? "final grade G3":"output y",0,0); ctx.restore();
+
+  ctx.save(); ctx.beginPath(); ctx.rect(m.l,m.t,pw,ph); ctx.clip();
+  // hidden test points + true curve are revealed only after locking in
+  if(s.locked || (L.kind==="syn-n" && s.tests.length)){
+    ctx.fillStyle="rgba(154,165,184,.55)";
+    data.test.x.forEach((x,i)=>{ctx.beginPath();ctx.arc(X(x),Y(data.test.y[i]),2.4,0,7);ctx.fill();});
+    if(!data.real){ctx.setLineDash([6,5]);ctx.strokeStyle="#718096";ctx.lineWidth=1.6;ctx.beginPath();
+      for(let i=0;i<=200;i++){const x=-1+i/100;(i?ctx.lineTo:ctx.moveTo).call(ctx,X(x),Y(E.TRUE_F(x)));}ctx.stroke();ctx.setLineDash([]);}
+  }
+  // model curve
+  const w = model(); ctx.strokeStyle=COL.red; ctx.lineWidth=2.4; ctx.beginPath();
+  for(let i=0;i<=300;i++){const x=-1+i/150, y=Math.max(-9,Math.min(9,E.predict(w,x)));(i?ctx.lineTo:ctx.moveTo).call(ctx,X(x),Y(y));}
+  ctx.stroke();
+  // validation points (orange squares) then training points (blue)
+  if(data.val && L.showVal){ctx.fillStyle=COL.orange;data.val.x.forEach((x,i)=>{ctx.fillRect(X(x)-4,Y(data.val.y[i])-4,8,8);});}
+  const f = fitSet(); ctx.fillStyle=COL.blue; ctx.strokeStyle="#fff"; ctx.lineWidth=1.2;
+  f.x.forEach((x,i)=>{ctx.beginPath();ctx.arc(X(x),Y(f.y[i]),data.real?4.5:5,0,7);ctx.globalAlpha=data.real?.75:1;ctx.fill();ctx.globalAlpha=1;ctx.stroke();});
+  ctx.restore();
+  let lg = '<span><i class="dot" style="background:'+COL.blue+'"></i>training points</span>';
+  if(data.val && L.showVal) lg += '<span><i class="dot" style="background:'+COL.orange+';border-radius:2px"></i>validation points</span>';
+  lg += '<span><i class="dot" style="background:'+COL.red+'"></i>your model</span>';
+  if(s.locked || (L.kind==="syn-n" && s.tests.length)) lg += '<span><i class="dot" style="background:'+COL.grey+'"></i>hidden test points</span>'+(data.real?'':'<span>- - true pattern</span>');
+  $("legend").innerHTML = lg;
+}
+
+function lineChart(opts){ // opts: xs, series[{name,color,ys,dash}], yCap, xLabel, marks[{x,label,color}], hline{y,label}
+  const {ctx,W,H} = setup($("chart")), m = {l:46,r:12,t:12,b:34}, pw=W-m.l-m.r, ph=H-m.t-m.b;
+  const x0=opts.xs[0], x1=opts.xs[opts.xs.length-1];
+  const X = x=> m.l+(x-x0)/(x1-x0||1)*pw, Y = y=> m.t+(1-Math.min(y,opts.yCap*1.4)/opts.yCap)*ph;
+  ctx.strokeStyle=COL.line; ctx.fillStyle="#5a6578"; ctx.lineWidth=1;
+  ctx.textAlign="right"; for(let i=0;i<=4;i++){const v=opts.yCap*i/4;ctx.beginPath();ctx.moveTo(m.l,Y(v));ctx.lineTo(m.l+pw,Y(v));ctx.stroke();ctx.fillText(v.toFixed(1),m.l-6,Y(v)+4);}
+  ctx.textAlign="center"; opts.xs.forEach((x,i)=>{if(opts.xs.length<=15||i%2===0)ctx.fillText(String(x),X(x),H-16);});
+  ctx.fillText(opts.xLabel,m.l+pw/2,H-2);
+  ctx.save(); ctx.translate(11,m.t+ph/2); ctx.rotate(-Math.PI/2); ctx.fillText("error (RMSE)",0,0); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.rect(m.l,m.t-2,pw,ph+4); ctx.clip();
+  if(opts.hline){ctx.strokeStyle=COL.blue;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(m.l,Y(opts.hline.y));ctx.lineTo(m.l+pw,Y(opts.hline.y));ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=COL.blue;ctx.textAlign="left";ctx.fillText(opts.hline.label,m.l+6,Y(opts.hline.y)-5);}
+  (opts.marks||[]).forEach(mk=>{ctx.strokeStyle=mk.color;ctx.lineWidth=1.4;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(X(mk.x),m.t);ctx.lineTo(X(mk.x),m.t+ph);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=mk.color;ctx.textAlign="center";ctx.fillText(mk.label,X(mk.x),m.t+11+(mk.dy||0));});
+  opts.series.forEach(se=>{ctx.strokeStyle=se.color;ctx.fillStyle=se.color;ctx.lineWidth=2.2;ctx.beginPath();
+    se.ys.forEach((y,i)=>{if(!isFinite(y))return;(i?ctx.lineTo:ctx.moveTo).call(ctx,X(opts.xs[i]),Y(y));});ctx.stroke();
+    se.ys.forEach((y,i)=>{if(!isFinite(y))return;ctx.beginPath();ctx.arc(X(opts.xs[i]),Y(y),se.dotsOnly?4.5:2.6,0,7);ctx.fill();});});
+  ctx.restore();
+  $("chartLegend").innerHTML = opts.series.map(se=>'<span><i class="dot" style="background:'+se.color+'"></i>'+se.name+'</span>').join("") + (opts.note?'<span>'+opts.note+'</span>':"");
+}
+
+/* ---------- UI ---------- */
+function renderTabs(){
+  $("tabs").innerHTML = LEVELS.map((L,i)=>'<button class="tab'+(i===cur?" on":"")+'" data-i="'+i+'"><b>Level '+L.id+'</b><span>'+L.title+'</span><div class="stars">'+stars(S[i].stars)+'</div></button>').join("");
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{cur=+b.dataset.i;start();});
+  const t = S.reduce((a,s)=>a+s.stars,0); $("total").textContent = "Stars: "+t+" / 12";
+}
+function start(){
+  const L = LEVELS[cur], s = S[cur];
+  s.locked=false; s.res=null; s.tests=[]; build();
+  $("mission").innerHTML = "<h2>Level "+L.id+": "+L.title+"</h2><p>"+L.mission+"</p>";
+  const syn_n = L.kind==="syn-n";
+  $("degRow").style.display = syn_n? "none":"block"; $("nRow").style.display = syn_n? "block":"none";
+  if(!syn_n){ $("deg").min=1; $("deg").max=L.maxDeg; $("deg").value=s.deg; }
+  else { $("nn").value=s.n; }
+  $("valBox").style.display = L.showVal? "block":"none";
+  $("lock").textContent = syn_n? "Run test with this much data" : "Lock in & reveal test";
+  $("hint").textContent = syn_n? "Each test run is counted. In real life, collecting data and testing costs time, so be smart about it." : (L.showVal? "Compare training and validation error: they tell different stories." : "Only the training error is visible. Is lower always better?");
+  $("result").style.display="none"; $("next").style.display="none";
+  setLocked(false); renderTabs(); update();
+}
+function setLocked(v){ $("deg").disabled=v; $("lock").disabled=v; if(LEVELS[cur].kind==="syn-n"){$("nn").disabled=false;$("lock").disabled=false;} }
+function update(){
+  const L = LEVELS[cur], s = S[cur];
+  // read the slider FIRST, then fit, so the numbers always match the curve on screen
+  if(L.kind==="syn-n"){ s.n=+$("nn").value; $("nVal").textContent = s.n; } else { s.deg=+$("deg").value; $("degVal").textContent = s.deg + (s.deg===1?" (straight line)":""); }
+  const f = fitSet(), w = model();
+  $("trErr").textContent = fmt(E.rmse(w,f,data.yScale));
+  if(L.showVal) $("vaErr").textContent = fmt(E.rmse(w,data.val,data.yScale));
+  drawPlot();
+}
+function meanBaseline(){ const my = data.train.y.reduce((a,b)=>a+b,0)/data.train.y.length; let ss=0; data.test.y.forEach(y=>ss+=(y-my)*(y-my)); return Math.sqrt(ss/data.test.y.length)*data.yScale; }
+
+function lock(){
+  const L = LEVELS[cur], s = S[cur];
+  s.attempts++;
+  if(L.kind==="syn-n") return lockN();
+  const errs = E.errorsByDegree(data, L.maxDeg), sc = E.scoreFromErrors(errs, s.deg), e = errs[s.deg-1];
+  const k = sc.score>=90?3: sc.score>=70?2:1; s.stars = Math.max(s.stars,k); s.locked=true; setLocked(true);
+  const valBest = L.showVal? errs.reduce((a,b)=>b.val<a.val?b:a) : null;
+  let lesson;
+  if(!L.showVal){
+    lesson = s.deg>sc.bestDeg+2
+      ? "Your degree-"+s.deg+" curve scored <b>"+fmt(e.train)+"</b> on the training points but <b>"+fmt(e.test)+"</b> on the hidden test points. It <b>memorised the noise</b> (overfitting). Look at the chart: training error only ever falls as you add complexity, so it can never warn you."
+      : s.deg<sc.bestDeg-1 ? "Degree "+s.deg+" is too stiff to follow the real pattern (<b>underfitting</b>): both training and test error stay high. The best degree was "+sc.bestDeg+"."
+      : "Good choice. Degree "+s.deg+" is close to the best (degree "+sc.bestDeg+"). Notice, though, that the training error alone could not tell you this: it keeps falling while the test error turns back up.";
+  } else {
+    lesson = "Validation error was lowest at degree <b>"+valBest.deg+"</b>; the best degree on the hidden test set was <b>"+sc.bestDeg+"</b>. "+
+      (Math.abs(valBest.deg-sc.bestDeg)<=2 ? "Holding data back gave you a trustworthy compass that training error never could." : "With only "+data.val.x.length+" validation points the signal is noisy, so validation is a guide, not a guarantee. More validation data (or cross-validation) makes it steadier.");
+    if(L.kind==="real") lesson += " On real, noisy data the winner is a <b>simple</b> model. Predicting just the average grade would give "+meanBaseline().toFixed(2)+"; the best you can do from G1 alone is about "+sc.best.toFixed(2)+".";
+  }
+  log.push({level:L.id, choice:"degree "+s.deg, train:+e.train.toFixed(3), test:+e.test.toFixed(3), score:sc.score});
+  s.last = {choice:"degree "+s.deg, test:e.test, score:sc.score};
+  $("result").style.display="block";
+  $("resTitle").innerHTML = "Result: <span class='stars'>"+stars(k)+"</span>";
+  $("resBody").innerHTML = '<div class="big '+(k===3?"good":k===1?"bad":"")+'">Score '+sc.score+' / 100</div>'+
+    '<div>Your test error: <b>'+fmt(e.test)+'</b> &middot; best possible with any degree: <b>'+fmt(sc.best)+'</b> (degree '+sc.bestDeg+')</div>'+
+    '<div class="lesson">'+lesson+'</div>';
+  const xs = errs.map(r=>r.deg), series=[{name:"training error",color:COL.blue,ys:errs.map(r=>r.train)}];
+  if(L.showVal) series.push({name:"validation error",color:COL.orange,ys:errs.map(r=>r.val)});
+  series.push({name:"test error (hidden until now)",color:COL.red,ys:errs.map(r=>r.test)});
+  $("chart").style.display="block"; $("result").scrollIntoView({behavior:"smooth",block:"nearest"});
+  lineChart({xs,series,yCap:L.yCap,xLabel:"model complexity (degree)",marks:[{x:s.deg,label:"you",color:COL.ink},{x:sc.bestDeg,label:"best",color:COL.red,dy:13}],
+    note:"errors above the top edge are off the chart", hline: data.real? {y:meanBaseline(),label:"predict-the-average"}:null});
+  $("next").style.display = (cur<LEVELS.length-1)? "inline-block":"none";
+  renderTabs();
+}
+// Level 3 test error = median over 15 repeated data collections of size n, so one lucky sample cannot decide the result.
+function medianTest(n){
+  const vals = [];
+  for(let r=0;r<15;r++){
+    const d = E.makeSynthetic(S[cur].seed*977+r*13+7, n, 0);
+    vals.push(E.rmse(E.fitPoly(d.train.x,d.train.y,LEVELS[cur].fixedDeg), data.test, 1));
+  }
+  vals.sort((a,b)=>a-b); return vals[7];
+}
+function lockN(){
+  const L = LEVELS[cur], s = S[cur], w = model(), te = medianTest(s.n);
+  s.tests.push({n:s.n,test:te}); const ok = te<=L.target;
+  log.push({level:L.id, choice:s.n+" points", train:+E.rmse(w,fitSet(),1).toFixed(3), test:+te.toFixed(3), score:ok?1:0});
+  s.last = {choice:s.n+" points", test:te, score:ok?100:0};
+  const k = ok? (s.n<=45?3: s.n<=70?2:1) : 0;
+  if(ok) s.stars = Math.max(s.stars,k);
+  $("result").style.display="block";
+  $("resTitle").innerHTML = ok? "Target reached: <span class='stars'>"+stars(k)+"</span>" : "Not yet: test error is above "+L.target.toFixed(2);
+  $("resBody").innerHTML = '<div class="big '+(ok?"good":"bad")+'">Test error '+fmt(te)+'</div><div>With <b>'+s.n+'</b> training points &middot; test run #'+s.attempts+' &middot; target &le; '+L.target.toFixed(2)+'<br><small>Test error = median of 15 repeated data collections of this size, so luck of one sample does not decide.</small></div>'+
+    '<div class="lesson">'+(ok? ("A degree-9 curve needs enough points to be pinned down. With "+s.n+" points the flexible model stopped chasing noise. "+(k===3?"Excellent, that is very data-efficient.":"Can you get there with fewer?")+" The chart now shows the full picture: error falls steeply as data grows, then flattens near the noise floor (0.35).")
+      : (te>1.5? "With so few points a degree-9 curve has enough freedom to pass through every dot, and it swings wildly in between. Collect more data and test again." : "Getting closer. More data tames the flexible model; keep going.")) +'</div>';
+  const grid=[]; for(let n=10;n<=120;n+=5) grid.push(n);
+  const series=[{name:"your test runs",color:COL.red,ys:grid.map(n=>{const t=s.tests.filter(a=>a.n===n);return t.length?t[t.length-1].test:NaN;}),dotsOnly:true}];
+  if(ok){ series.unshift({name:"test error for every amount of data",color:"#e9a3a3",ys:grid.map(n=>medianTest(n))}); }
+  $("chart").style.display="block";
+  lineChart({xs:grid,series,yCap:L.yCap,xLabel:"training points",marks:[],hline:{y:L.target,label:"target "+L.target.toFixed(2)},note:"errors above the top edge are off the chart"});
+  $("next").style.display = ok&&cur<LEVELS.length-1? "inline-block":"none";
+  renderTabs(); update();
+}
+
+$("deg").oninput = update;
+$("nn").oninput = ()=>{ update(); };
+$("lock").onclick = lock;
+$("again").onclick = ()=>{ S[cur].seed++; start(); };
+$("next").onclick = ()=>{ cur=Math.min(cur+1,LEVELS.length-1); start(); window.scrollTo({top:0,behavior:"smooth"}); };
+$("export").onclick = ()=>{
+  const name = $("pname").value.trim() || "(no name)";
+  let t = "Overfit Lab playtest - player: "+name+"\nDate: "+new Date().toLocaleString()+"\nStars: "+S.reduce((a,s)=>a+s.stars,0)+" / 12\n\n";
+  LEVELS.forEach((L,i)=>{ t += "Level "+L.id+" ("+L.title+"): "+stars(S[i].stars)+"  attempts="+S[i].attempts+(S[i].last?"  last choice="+S[i].last.choice+"  last test error="+S[i].last.test.toFixed(2):"")+"\n"; });
+  t += "\nEvery lock-in (level, choice, train error, test error):\n"+log.map(r=>"  L"+r.level+" | "+r.choice+" | train "+r.train+" | test "+r.test).join("\n")+"\n\nPlayer feedback: \n";
+  const box=$("exportBox"); box.style.display="block"; box.value=t; box.select(); try{document.execCommand("copy");}catch(e){}
+};
+window.addEventListener("resize", ()=>{ drawPlot(); });
+start();
+})();
+</script>
+</body>
+</html>

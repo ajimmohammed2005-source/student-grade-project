@@ -1,0 +1,70 @@
+{
+  "audit": {
+    "rows": 395,
+    "columns": 33,
+    "missing_values": 0,
+    "duplicate_rows": 0,
+    "numeric_cols": 16,
+    "categorical_cols": 17,
+    "g3_zero_students": 38,
+    "g3_zero_with_g2_zero": 13,
+    "g3_zero_with_g2_positive": 25,
+    "g3_zero_with_absences_zero": 38,
+    "share_g3_zero_when_absences_zero": 0.33043478260869563,
+    "n_absences_zero": 115,
+    "absences_max": 75,
+    "absences_p95": 18.299999999999955,
+    "absences_above_30": 5,
+    "pass_rate": 0.6708860759493671,
+    "g3_mean": 10.415189873417722,
+    "g3_std": 4.5814426109978434,
+    "corr_G2_G3": 0.904867989269301,
+    "corr_G1_G3": 0.8014679320174145
+  },
+  "split": {
+    "train": 316,
+    "test": 79,
+    "seed": 42
+  },
+  "best_model_A_by_cv": "Random forest",
+  "best_model_B_by_cv": "Random forest",
+  "top_importance": {
+    "A": {
+      "log_absences": 0.382,
+      "failures": 0.214,
+      "has_failed_before": 0.154,
+      "goout": 0.081,
+      "sex": 0.067,
+      "parent_edu": 0.062,
+      "schoolsup": 0.056,
+      "Mjob": 0.038
+    },
+    "B": {
+      "G2": 4.053,
+      "log_absences": 0.518,
+      "studytime": 0.081,
+      "age": 0.046,
+      "famrel": 0.044,
+      "G1": 0.013,
+      "health": 0.007,
+      "traveltime": 0.007
+    }
+  },
+  "spearman_top": {
+    "failures": -0.361,
+    "age": -0.173,
+    "goout": -0.166,
+    "Dalc": -0.121,
+    "traveltime": -0.121,
+    "Walc": -0.104,
+    "health": -0.048,
+    "freetime": -0.005,
+    "absences": 0.018,
+    "famrel": 0.055,
+    "studytime": 0.105,
+    "Fedu": 0.17,
+    "Medu": 0.225,
+    "G1": 0.878,
+    "G2": 0.957
+  }
+}
